@@ -15,7 +15,7 @@ var config = {
         }
     },
 
-    scene: [Hexagon]
+    scene: [Level]
 
 
 };

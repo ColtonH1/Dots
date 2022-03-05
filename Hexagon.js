@@ -7,16 +7,18 @@ class Hexagon extends Phaser.Scene {
         })
     }
 
-graphics;
-lineGraphics;
-circleGraphics;
+graphics; //the hexagon
+lineGraphics; //line being drawn by user
+prevLineGraphics; //the lines leading up to the current circle
+circleGraphics; //the circles
 hexagonCoord = []; //Hexagon coordinates
 circleArr = [[]];
 drag; //the circle clicked on
-selected;
 rows;
 cols;
-circleMatrix;
+dots = [];
+xC; //x coordinate of the next selected circle
+yC; //y coordinate of the next selected circle
     create()
     {
         //size of grid is 8x8
@@ -25,12 +27,14 @@ circleMatrix;
         var screenWidth = window.innerWidth; //size of screen width
         var screenHeight = window.innerHeight; //size of screen height
         var rad; //half the length of  the hexagon
-        var num = 0;
         
 
         this.graphics = this.add.graphics();
         this.lineGraphics = this.add.graphics();
         this.circleGraphics = this.add.graphics();
+        this.prevLineGraphics = this.add.graphics();
+        this.xC = -1;
+        this.yC = -1
       
         rad = this.getGridSize();
 
@@ -46,66 +50,21 @@ circleMatrix;
                 var hexagonCenter = this.drawGrid(i, j, rad, startX, startY);
                 this.hexagonCoord.push([i, hexagonCenter.x], [j, hexagonCenter.y]);
                 var circle = this.drawCircles(hexagonCenter, i, j);
-
-                //console.log(circle);
-
-                //this.circleArr[i].push(circle);
-                
-                //console.log([circle.getData('x')] + [circle]);
-                
-                //this.circleArr.push([circle.getData('x')]); 
                 
                 if(this.circleArr.length === i )
                 {
                     this.circleArr.push([]);
-                    this.circleArr[i].push([circle]); 
+                    this.circleArr[i].push(circle); 
                 }
                 else
                 {
-                    this.circleArr[i].push([circle]);  
+                    this.circleArr[i].push(circle);  
                 }
-                //this.circleArr[i].push([circle]);  
  
-                console.log('[' + i + ',' + j + '] = ' + this.circleArr[i][j]);
-                //this.circleArr[i][j].push([circle]); 
-
-                /*
-                if(this.circleArr.length != i)
-                {
-                    Phaser.Utils.Array.AddAt(this.circleArr[i], ([circle.getData('x'), ([circle.getData('y'), ([circle])])]), num);  
-                }
-                else
-                {
-                    console.log("first");
-                    this.circleArr.push([circle.getData('x'), [circle.getData('y'), [circle]]]); 
-                }*/
-                
-                //console.log(this.circleArr[2][0]);
-
-            }
-            //num = 0;
-        }
-
-        //console.log(Phaser.Utils.Array.Matrix.CheckMatrix([this.circleMatrix]));
-
-        //this.circleMatrix = Phaser.Utils.Array.Matrix;
-        //console.log(this.circleArr.length);
-        for (let i = 0; i < this.circleArr.length; i++) {
-            // get the size of the inner array
-            var innerArrayLength = this.circleArr[i].length;
-            // loop the inner array
-            for (let j = 0; j < innerArrayLength; j++) {
                 //console.log('[' + i + ',' + j + '] = ' + this.circleArr[i][j]);
-                //console.log(Phaser.Utils.Array.Matrix.MatrixToString(this.circleMatrix));
+
             }
         }
-    }
-
-    update () {
-        //this.time.timeScale = .025;
-        this.physics.world.timeScale = 0.5; // physics
-
-        //console.log(this.physics.world.timeScale);
     }
 
     getGridSize()
@@ -222,12 +181,16 @@ circleMatrix;
     //these next three are how to handle dragging
     startDrag(pointer, targets)
     {
+        //this.dots.push(targets[0]);
         this.input.off('pointerdown', this.startDrag, this);
-        this.dragObj = targets[0];
+        this.dragObj = targets[0];//this.dots[this.dots.length-1];
+        //console.log("current cooridnates --- x: " + this.dragObj.getData('x') + " y: " + this.dragObj.getData('y'));
+        
         
         //this verfies there is a color data attached to the object attempted being dragged
+        //if there is no color data, then it is not a circle
         try{
-            //console.log(this.dragObj.getData('color'));
+            //console.log("current cooridnates --- x: " + this.dragObj.getData('x') + " y: " + this.dragObj.getData('y'));
             this.dragObj.getData('color');
             this.input.on('pointermove', this.doDrag, this);  
         }
@@ -247,100 +210,186 @@ circleMatrix;
     doDrag(pointer)
     {
         var neighbors = [];
-        var circleCoord = [{x: -1, y: -1}]; //the element number in the circle array that is the neighbor
+        var circleCoord = {x: -1, y: -1}; //the element number in the circle array that is the neighbor
         var circle;
-        var lineColor;
         var neighborCircleColor;
         neighbors = this.getNeighbors(this.dragObj);
-        console.log(neighbors);
+        //console.log(neighbors[0][0].x);
 
-        //continue to draw line until user lets go
-        this.lineGraphics.clear();
-        this.lineGraphics.beginPath();
-        this.lineGraphics.beginPath();
-        this.lineGraphics.lineStyle(10, this.dragObj.getData('color'), 1.0);
-        this.lineGraphics.moveTo(this.dragObj.x, this.dragObj.y);
-        this.lineGraphics.lineTo(this.input.x, this.input.y);
-        this.physics.add.existing(this.lineGraphics);
-        this.lineGraphics.body.setSize(10, 10);
+        //if this is the first circle, then add it to the list
+        //the rest are added as they collide
+        //console.log("length: " + this.dots.length);
+        if(this.dots.length === 0)
+        {
+            this.dots.push(this.dragObj);
+        }
 
-        lineColor = this.dragObj.getData('color');
-
-
-        this.lineGraphics.stroke();
-        this.lineGraphics.closePath();
+        //continue to draw line from the current circle to wherever the cursor is
+        this.draw();
+        
 
         //check for collision with each neighbor
         for(let i = 0; i < 6; i++)
         {
-            //console.log(this.input.x)
-            //console.log(neighbors[i][0].x);
-            circleCoord = this.checkCollision(this.input, neighbors[i][0].x, neighbors[i][0].y);          
-            //console.log(circleNum);  
+            this.checkCollision(this.input, neighbors[i][0].x, neighbors[i][0].y); 
+            circleCoord = {x: this.xC, y: this.yC};
+            //console.log('x: ' + circleCoord.x + ' y: ' + circleCoord.y);
+            if(circleCoord.x !== -1 && circleCoord.y !== -1)
+            {
+                i = 10; //break the loop
+            }         
         }
-        //console.log(circleNum);
 
+        //if the coordinates are on the board...
         if((circleCoord.x > -1 && circleCoord.x < this.rows) && (circleCoord.y > -1 && circleCoord.y < this.cols))
         {
-            if((circleCoord.x > -1 && circleCoord.x < this.rows) && (circleCoord.y > -1 && circleCoord.y < this.cols))
-            {
-                circle = this.circleArr[circleCoord.x][circleCoord.y]; 
-                circle = circle[0]; 
-                console.log(circle);
-            }
+            //console.log("valid coordinates");
+            circle = this.circleArr[circleCoord.x][circleCoord.y]; //the neighbor
             neighborCircleColor = circle.getData('color');
-            console.log(neighborCircleColor);
-        }
-    }
 
-    //check if there is a collision between the circle it's at and a neighboring circle
-    checkCollision(line, xCoord, yCoord)
-    {
-        console.log("x: " + xCoord + " y: " + yCoord);
+            //if the colors match...
+            if(neighborCircleColor === this.dragObj.getData('color'))
+            {
+                
+                this.xC = -1;
+                this.yC = -1;
+                var index = this.dots.indexOf(circle);
+                //console.log(index);
+                //if the circle is new, add it to the list
+                if(index === -1)
+                {
+                    //console.log('x: ' + circle.getData('x') + ' y: ' + circle.getData('y'));
+                    this.dots.push(circle);
+                    //console.log(this.dots.length);
+                    //console.log(this.dots[this.dots.length-1]);
+                    for (let i = 0; i < this.dots.length; i++) {
+                        const element = this.dots[i];
+                        //console.log(element);
+                        
+                    }
+                    this.lineGraphics.clear();
+                    this.reDraw(); //if a new circle has been reached, draw lines from the first to the current
+                    
+                }
+                //if the circle is the previous circle, the user moved back, so remove it from the list
+                else if((this.dots[this.dots.length - 2] === this.dragObj) && this.dots.length !== 1)
+                {
+                    console.log("backedup");
+                    this.input.on('pointerout', function (pointer, targetObject)
+                    {
+                        console.log("stopped dragging " + this.dots.length);
 
-
-        var distance = 100; //the distance between the line and the circle...set to 100 so it will default to being too far
-        var circleCoord; //the element number in the circle array that is the neighbor
-        if((xCoord > -1 && xCoord < this.rows) && (yCoord > -1 && yCoord < this.cols))
-        {
-            var circle = this.circleArr[xCoord][yCoord]; 
-            circle = circle[0]; 
-            console.log(circle);
-        }
-        else
-        {
-            return [{x: -1, y: -1}];
-        }
-
-        distance = Phaser.Math.Distance.Between(line.x, line.y, circle.x, circle.y);
-
-        console.log("line.x : " + line.x + " line.y : " + line.y);
-        console.log("circle.x : " + circle.x + " circle.y : " + circle.y);
-
-
-        
-        console.log(distance);
-        
-        //if the distance is less than the radius of the circle then
-        if(distance < 10)
-        {
-            circleCoord = [{x: xCoord, y: yCoord}];
-            console.log('circle Coord: ' + circleCoord);
-            console.log("hit!");
-            return circleCoord;
-        }
-        else
-        {
-            return [{x: -1, y: -1}];
+                        this.input.on('pointerup', this.stopDrag, this);
+                        this.lineGraphics.clear();
+                        this.prevLineGraphics.clear();
+                        this.reDraw();
+                        this.draw();
+                    }, this);
+                    this.dots.pop();
+                    //this.lineGraphics.clear();
+                    this.reDraw();
+                }
+                this.input.on('pointerover', this.startDrag, this);
+                this.input.off('pointermove');
+                this.input.on('pointerup', this.stopDrag, this);
+            }
+            
         }
     }
 
     stopDrag()
     {
+        
         this.lineGraphics.clear();
+        this.prevLineGraphics.clear();
+        this.input.off("gameobjectover");
+        this.input.off('pointerout');
+        this.input.off('pointerup', this.doDrag, this);
         this.input.on('pointerdown', this.startDrag, this);
-        this.input.off('pointermove', this.doDrag, this);
-        this.input.off('pointerup', this.stopDrag, this)
+        this.input.off('pointerover');
+        this.input.off('pointermove');
+        this.input.off('pointerup', this.stopDrag, this);
+        this.dots.pop();
+    }
+
+    draw() 
+    {
+        this.lineGraphics.clear();
+        this.lineGraphics.beginPath();
+        this.lineGraphics.beginPath();
+        this.lineGraphics.lineStyle(10, this.dragObj.getData('color'), 1.0);        
+        this.lineGraphics.moveTo(this.dragObj.x, this.dragObj.y);
+        this.lineGraphics.lineTo(this.input.x, this.input.y);
+        this.physics.add.existing(this.lineGraphics);
+        this.lineGraphics.body.setSize(10, 10);
+        this.lineGraphics.stroke();
+        this.lineGraphics.closePath();
+    }    
+
+    reDraw()
+    {
+        this.lineGraphics.clear();
+        this.prevLineGraphics.clear();
+        this.prevLineGraphics.beginPath();
+        this.prevLineGraphics.beginPath();
+        this.prevLineGraphics.lineStyle(10, this.dragObj.getData('color'), 1.0);   
+        
+        //draw from beginning circle to new circle
+        for(let i = 0; i < this.dots.length; i++)
+        {
+            //if this is not the last element draw a line from the previous dot, to the next dot
+            if(this.hasNext(this.dots, i + 1))
+            {
+                this.prevLineGraphics.moveTo(this.dots[i].x, this.dots[i].y);
+                this.prevLineGraphics.lineTo(this.dots[i+1].x, this.dots[i+1].y);
+            }
+        }
+        this.prevLineGraphics.stroke();
+        this.prevLineGraphics.closePath();
+    }
+
+    hasNext(arr, index)
+    {
+        //checks if the possible next index number is greate than the size of the array
+        //example: checking if index, which is equal to 3, is greater than size of the array
+            //is 3 > (3-1) //size is three, which means the last element is 2, so subtract one
+        if(index > (arr.length - 1))
+        {
+            return false;
+        }
+        else
+        {
+            return true;
+        }
+    }
+
+
+    //check if there is a collision between the circle it's at and the line
+
+    /*
+        Note: I was able to speed up this function by a significant amount by changing this function from checking the distance from input line to circle 
+        which looked something like: distance = sqrt((circle.x - line.x)^2 + (circle.y - line.y)^2) 
+        this took longer to process since it is math
+        this final version is a listener function that checks when the mouse is over a circle (only circles are interactable), 
+        if the circle is a neighbor, and it is a valid space (not outside the bounds), then it sends back the coordinates to be checked if the colors match
+    */
+    checkCollision(line, xCoord, yCoord)
+    {
+        //if the coordinate is within bounds (there is no coordinates smaller than zero or larger than the amount of rows)
+        if((xCoord > -1 && xCoord < this.rows) && (yCoord > -1 && yCoord < this.cols))
+        {
+            var circle = this.circleArr[xCoord][yCoord]; //the neighboring circle of the circle we started from
+        }
+
+        //check if input is over interactable gameobject
+        line.on('gameobjectover', function (pointer, targetObject)
+        {
+            if((targetObject === circle))
+            {
+                this.xC = xCoord;
+                this.yC = yCoord;     
+            }    
+        }, this);   
     }
 
     //get the surrounding hexagons from the chosen circle
