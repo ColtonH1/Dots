@@ -4,6 +4,9 @@ var config = {
     height: 600,
     backgroundColor: '#ffffff',
     parent: 'Dots',
+    dom: {
+        createContainer: true
+    },
 
     physics:
     {

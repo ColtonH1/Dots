@@ -8,18 +8,14 @@ class Level extends Phaser.Scene {
     
     preload()
     {
-        //this.load.image('blueFlare', 'Assets/Sprites/blue-flare.png');
-        //this.load.image('greenOrb', 'Assets/Sprites/green-orb.png');
+        this.load.html("form", "form.html");
         this.load.image('MenuBox', 'Assets/Sprites/Menu_Box.png');
         this.load.image('Button', 'Assets/Sprites/Button.png');
-        this.load.image('QuitBox', 'Assets/Sprites/QuitBox.png');
+        this.load.atlas('flares', 'Assets/particles/flares.png', 'Assets/particles/flares.json');
     }
 
     create()
     {
-        //user input
-
-
         //title text
 		this.add.text(275, 50, 'DOTS', {
 			fontFamily: 'Risque',
@@ -32,6 +28,9 @@ class Level extends Phaser.Scene {
 			shadow: { offsetX: -5, offsetY: 5, color: '#060000', fill: true, stroke: true }
 		});
 
+        //group
+        this.settingsGroup = this.add.group(); //group for the settings menu
+
 
         //line graphics
         this.hexGraphics = this.add.graphics(); //the lines drawing the hexagons
@@ -43,43 +42,199 @@ class Level extends Phaser.Scene {
         this.isDrawing = false; //keep track of if a draw class was created
         this.rows = 8;
         this.cols = 8;
+        this.colors = 8;
         this.hexInfo; //holds the information about the hexagon array
-        this.isPaused = false; //If the user can provide input to the game
+        this.isPaused = true; //If the user can provide input to the game
+        this.pausePart = false;
 
         //images
-        this.userInputBox = this.add.image(0, 0, "MenuBox").setDepth(1);
+        this.userInputBox = this.add.image(333, 333, "MenuBox").setDepth(1);
+        this.settingsGroup.add(this.userInputBox);
+        this.acceptButton = this.add.image(333, 450, "Button").setDepth(2);
+        this.settingsGroup.add(this.acceptButton);
+        this.partPauseBtn = this.add.image(0, 0, "Button").setDepth(2);
         this.menuBox = this.add.image(0, 0, "MenuBox").setDepth(1);
         this.restartButton = this.add.image(0, 0, "Button").setDepth(2);
         this.quitButton = this.add.image(0, 0, "Button").setDepth(2);
-        this.quitBox = this.add.image(0, 0, "QuitBox").setDepth(10);
         this.makeButtons();
 
-        //classes
-        this.gridInfo = new Grid(this.rows, this.cols, this.hexGraphics, this); //make the hexagons
-        this.hexInfo = this.gridInfo.getHexCenter(); //set the hexagon information
-        this.circleInfo = new Circle(this.rows, this.cols, this.gridInfo.getHexSize(), this.hexInfo, this); //draw the circles
-        this.ui = new UIEvents(this);
+        //user input
+        this.userInput();
 
-        var level = this;
         //input handlers
         this.input.on("gameobjectdown", this.startDraw, this); //start a move
         this.input.on("pointermove", this.continueDraw, this); //move input around 
         this.input.on("pointerup", this.stopDraw, this); //move finished
-        this.restartButton.on("pointerup", this.ui.restart, this); //clicked restart
-        //this.quitButton.on("pointerup", function (event) {}, this); //clicked quit
         this.quitButton.on("pointerup", this.quit, this); //clicked quit
+        this.partPauseBtn.on("pointerup", this.pauseParticles, this); //clicked quit
+
+        //particles
+        this.particles = this.add.particles('flares');
+
+        this.emitterBlue = this.makeEmitters(0x0000FF);
+        this.emitterGreen= this.makeEmitters(0x00FF00);
+        this.emitterGreen.stop();
 
 
     }
 
     userInput()
     {
-        
-        this.message = this.add.text(640, 250, "Enter the amount of rows you would like on the board", {
-            color: "#FFFFFF",
-            fontSize: 60,
-            fontStyle: "bold"
-        }).setOrigin(0.5).setDepth(2);
+        //text
+
+        //main text
+        this.settingsText = this.text(200, 177, "Settings:", '40px', '#77CCBB', 2, -1, 1).setDepth(2);
+        this.settingsGroup.add(this.settingsText);
+        var ruleText = this.text(200, 230, "Enter number within range:", '20px', '#77CCBB', 2, -1, 1).setDepth(2);
+        this.settingsGroup.add(ruleText);
+        var rowText = this.text(200, 250, "Rows:", '35px', '#77CCBB', 2, -1, 1).setDepth(2);
+        this.settingsGroup.add(rowText);
+        var colText = this.text(200, 300, "Columns:", '35px', '#77CCBB', 2, -1, 1).setDepth(2);
+        this.settingsGroup.add(colText);
+        var colorText = this.text(200, 350, "Colors:", '35px', '#77CCBB', 2, -1, 1).setDepth(2);
+        this.settingsGroup.add(colorText);
+        var acceptText = this.text(255, 430, "ACCEPT", '40px', '#757575', 2, -1, 1).setDepth(2); 
+        this.settingsGroup.add(acceptText);       
+
+        //range text
+        var rowRangeText = this.text(200, 285, "Row range: 2-8", '20px', '#000000', 0, 0, 0).setDepth(2);
+        this.settingsGroup.add(rowRangeText);
+        var colRangeText = this.text(200, 335, "Column range: 2-8", '20px', '#000000', 0, 0, 0).setDepth(2);
+        this.settingsGroup.add(colRangeText);
+        var colorsRangeText = this.text(200, 385, "Color range: 2-8", '20px', '#000000', 0, 0, 0).setDepth(2);
+        this.settingsGroup.add(colorsRangeText);
+
+        //'invalid' text
+        this.invalidText = this.text(182, 177, "Invalid input!", '34px', '#FF0000', 4, 0, 0).setDepth(3);
+        this.settingsGroup.add(this.invalidText);
+        this.invalidText.visible = false;
+
+        //input
+        this.rowInput = this.add.dom(425, 275).createFromCache("form").setDepth(2);
+        this.settingsGroup.add(this.rowInput);
+        this.colInput = this.add.dom(425, 325).createFromCache("form").setDepth(2);
+        this.settingsGroup.add(this.colInput);
+        this.colorInput = this.add.dom(425, 375).createFromCache("form").setDepth(2);
+        this.settingsGroup.add(this.colorInput);
+
+        //make button
+        this.acceptButton.setInteractive(); 
+
+        //add 'enter' key as an input
+        this.returnKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
+
+        //listen for 'enter' key to be pressed
+        this.returnKey.on("down", this.validInput, this);
+        //listen for 'accept' button to be pressed
+        this.acceptButton.on("pointerup", this.validInput, this); 
+    }
+
+    validInput()
+    {
+        //variables
+        var row = this.rowInput.getChildByName("name");
+        var col = this.colInput.getChildByName("name");
+        var color = this.colorInput.getChildByName("name");
+        var rowAccepted = false;
+        var colAccepted = false;
+        var colorAccepted = false;
+
+        //is row valid
+        if(!isNaN(row.value) && row.value > 1 && row.value < 9) 
+        {
+            console.log(row.value);
+            this.rowNum = parseInt(row.value); //only numbers are able to be in the input    
+            rowAccepted = true;                                
+        }
+        else
+        {
+            rowAccepted = false;
+        }
+
+        //is column valid
+        if(!isNaN(col.value) && col.value > 1 && col.value < 9) 
+        {
+            this.colNum = parseInt(col.value); //only numbers are able to be in the input    
+            colAccepted = true;                               
+        }
+        else
+        {
+            colAccepted = false;
+        }
+
+        //is color valid
+        if(!isNaN(color.value) && color.value > 1 && color.value < 9) 
+        {
+            this.colorNum = parseInt(color.value); //only numbers are able to be in the input    
+            colorAccepted = true;                               
+        }
+        else
+        {
+            colorAccepted = false;
+        }
+
+        //print if one of them isn't valid (and which one it is)
+        if(!rowAccepted)
+        {
+            this.settingsText.visible = false;
+            this.invalidText.setText("Invalid row input!")
+            this.invalidText.visible = true;
+        }   
+        else if(!colAccepted)
+        {
+            this.settingsText.visible = false;
+            this.invalidText.setText("Invalid column input!")
+            this.invalidText.visible = true;
+        }   
+        else if(!colorAccepted)
+        {
+            this.settingsText.visible = false;
+            this.invalidText.setText("Invalid color input!")
+            this.invalidText.visible = true;
+        }     
+        else
+        {
+            this.invalidText.visible = false;
+            this.settingsText.visible = true;
+            this.ready();
+        }
+    }
+
+    ready()
+    {
+        //set settings
+        this.rows = this.rowNum;
+        this.cols = this.colNum;
+        this.colors = this.colorNum;
+
+        //turn off settings screen
+        this.settingsGroup.setVisible(false);
+
+        //unpause game
+        this.isPaused = false;
+        //this.ui.timedEvent.paused = false;
+
+        //start the game
+        this.gridInfo = new Grid(this.rows, this.cols, this.hexGraphics, this); //make the hexagons
+        this.hexInfo = this.gridInfo.getHexCenter(); //set the hexagon information
+        this.circleInfo = new Circle(this.rows, this.cols, this.gridInfo.getHexSize(), this.hexInfo, this); //draw the circles
+        this.ui = new UIEvents(this);
+        this.restartButton.on("pointerup", this.ui.restart, this); //clicked restart
+    }
+
+    text(x, y, text, size, color, strokeSize, offsetX, offsetY)
+    {
+		var text = this.add.text(x, y, text, {
+			fontFamily: 'Risque',
+			fontSize: size,
+			color: color,
+			fontStyle: 'normal',
+			stroke: '#040000',
+			strokeThickness: strokeSize,
+			shadow: { offsetX: offsetX, offsetY: offsetY, color: '#060000', fill: true, stroke: true }
+		}).setDepth(2)
+
+        return text;
     }
 
     startDraw(pointer, gameObject, event)
@@ -118,10 +273,6 @@ class Level extends Phaser.Scene {
             this.dropCircles();
             this.isDrawing = false;
             this.draw.stop();  
-        }
-        else
-        {
-
         }
         this.isDragging = false;        
     }
@@ -187,12 +338,17 @@ class Level extends Phaser.Scene {
 
     makeButtons()
     {
-        this.quitBox.setPosition(333, 333);
-        this.quitBox.visible = false;
+        //particle pause button
+        this.partPauseBtn.setPosition(75, 275);
+        this.partPauseBtn.setScale(.5, 1);
+        this.partPauseBtn.setInteractive(); 
+        this.partPauseBtnTxt = this.text(15, 265, "Pause Particles", '20px', '#77CCBB', 2, -1, 1).setDepth(2);
 
+        //box to hold buttons
         this.menuBox.setPosition(333, 333);
-        this.menuBox.visible = false;
+        this.menuBox.visible = false;     
 
+        //restart button
         this.restartButton.setPosition(333, 275);
         this.restartButton.setInteractive();        
         this.restartButton.visible = false;
@@ -200,6 +356,7 @@ class Level extends Phaser.Scene {
         this.restartText.visible = false;
         this.restartText.setDepth(3);
 
+        //quit button
         this.quitButton.setPosition(333, 350);
         this.quitButton.setInteractive();        
         this.quitButton.visible = false;
@@ -218,10 +375,6 @@ class Level extends Phaser.Scene {
     quit()
     {
         console.log("Quit in level");
-        //this.quitBox.setScale({x: 4, y: 1.75});
-        //this.quitBox.setScaleX(4);
-        //this.quitBox.setScaleY(1.75);
-        //this.quitBox.visible = true;
 
 		this.add.text(150, this.scale.height * 0.5 + 175, 'YOU QUIT!', {
 			fontFamily: 'Risque',
@@ -233,6 +386,61 @@ class Level extends Phaser.Scene {
 			strokeThickness: 10,
 			shadow: { offsetX: -2, offsetY: 2, color: '#060000', fill: true, stroke: true }
 		}).setDepth(11).setAngle(-45);
+    }
+
+    makeEmitters(color)
+    {
+        var emitter = this.particles.createEmitter({
+            frame: [ 'red', 'green', 'blue', 'white' ],
+            x: 400,
+            y: 500,
+            lifespan: 4000,
+            angle: { min: 225, max: 315 },
+            speed: { min: 100, max: 300 },
+            scale: { start: 0.6, end: 0 },
+            gravityY: 100,
+            bounce: 0.9,
+            bounds: { x: 0, y: 0, w: 1000, h: 0 },
+            collideTop: false,
+            collideBottom: false,
+            blendMode: 'ADD', 
+            tint: color,
+        });
+
+        return emitter;
+    }
+
+    switchEmitters()
+    {
+        if(!this.pausePart)
+        {
+            this.emitterBlue.stop();
+            this.emitterGreen.start(); 
+            this.time.addEvent({
+                delay: 2000,
+                callback: ()=>{
+                    this.emitterBlue.start();
+                    this.emitterGreen.stop();   
+                },
+                loop: false
+            })            
+        }
+
+    }
+
+    pauseParticles()
+    {
+        this.pausePart = !this.pausePart;
+
+        if(this.pausePart)
+        {
+            this.emitterBlue.stop();
+            this.emitterGreen.stop();
+        }
+        else
+        {
+            this.emitterBlue.start();
+        }
     }
 }
 
@@ -256,8 +464,8 @@ class Grid
         this.size = this.SetHexSize(screenWidth, screenHeight); //get size of hexagon        
         this.hexCenter = [];
 
-        var startX = (screenWidth / this.size) + (screenWidth / this.rows); //offset of x
-        var startY = (screenHeight / this.size) + (screenHeight / (this.cols / 2)); //offset of y
+        var startX = 200; //(screenWidth / this.size) + (screenWidth / this.rows); //offset of x
+        var startY = 200; //(screenHeight / this.size) + (screenHeight / (this.cols / 2)); //offset of y
 
         this.drawGrid(startX, startY);
     }
@@ -468,7 +676,8 @@ class Circle
     //randomly choose color
     chooseColor()
     {
-        switch (Phaser.Math.Between(0, 7))
+        //choose color from however many colors the user chose
+        switch (Phaser.Math.Between(0, this.level.colors - 1))
         {
             case 0:
                 return 0xFF5733; //orange
@@ -545,7 +754,6 @@ class Draw
     {
         this.lineSize = lineSize; //size of line to be draw
         this.level = level;
-        //this.hexInfo = hexInfo;
 
         this.create();
     }
@@ -608,6 +816,10 @@ class Draw
         else if(index === this.chosenArr.length - 2 )
         {
             this.backup();
+        }
+        else if(index === 0)
+        {
+            this.loop();
         }
 
     }
@@ -756,12 +968,41 @@ class Draw
         this.level.prevLineGraphics.closePath();
     }
 
+    //player is going to previous circle
     backup()
     {
         this.chosenArr.pop();
         this.level.lineGraphics.clear();
         this.redraw();
         this.circle = this.chosenArr[this.chosenArr.length - 1];
+    }
+
+    //player found a loop
+    loop()
+    {
+        //get all circles on the board
+        var circleArr = this.level.circleInfo.getCircles();
+        //for each row
+        for(let i = 0; i < this.level.rows; i++)
+        {
+            //for each column
+            for(let j = 0; j < this.level.rows; j++)
+            {
+                //if the circle in this position has the same color as our starting circle,
+                if(circleArr[i][j].getData('color') === this.circle.getData('color'))
+                {
+                    //if the circle at this position is not in the chosen array already, then add it
+                    var index = this.chosenArr.indexOf(circleArr[i][j]);
+                    if(index === -1)
+                    {
+                        this.chosenArr.push(circleArr[i][j]);                        
+                    }
+
+                }
+            }
+        }
+        this.level.switchEmitters(true);
+        this.level.stopDraw();
     }
 
     hasNext(arr, index)
@@ -820,7 +1061,7 @@ class UIEvents
         this.timerText = this.text(475, 90, 'Time: 0', '30px', 0x00FF00, 1, 0, 0);
         //this.gameOverText = this.level.add.text(275, 100, 'Game Over', { fontSize: '20px', fill: '#000' }); 
         this.gameOverText = this.text(235, 175, "Game Over", '40px', '#FF1212', 7, -5, 5); 
-        this.finalScoreText = this.text(190, 400, ('Final Score: ' + this.score), '50px', '#77CCBB', 8, -3, 3).setDepth(3);
+        this.finalScoreText = this.text(190, 400, ('Final Score: ' + this.score), '40px', '#77CCBB', 8, -3, 3).setDepth(3);
         this.gameOverText.visible = false;
         this.finalScoreText.visible = false;
 
@@ -834,9 +1075,6 @@ class UIEvents
 
     text(x, y, text, size, color, strokeSize, offsetX, offsetY)
     {
-        //const x = this.scale.width * 0.5
-		//const y = this.scale.height * 0.5
-
 		var text = this.level.add.text(x, y, text, {
 			fontFamily: 'Risque',
 			fontSize: size,
