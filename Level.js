@@ -1,11 +1,38 @@
+const eventsCenter = new Phaser.Events.EventEmitter()
+
 class Level extends Phaser.Scene {
     constructor() 
     {
         super("Level");
     }
     
+    preload()
+    {
+        //this.load.image('blueFlare', 'Assets/Sprites/blue-flare.png');
+        //this.load.image('greenOrb', 'Assets/Sprites/green-orb.png');
+        this.load.image('MenuBox', 'Assets/Sprites/Menu_Box.png');
+        this.load.image('Button', 'Assets/Sprites/Button.png');
+        this.load.image('QuitBox', 'Assets/Sprites/QuitBox.png');
+    }
+
     create()
     {
+        //user input
+
+
+        //title text
+		this.add.text(275, 50, 'DOTS', {
+			fontFamily: 'Risque',
+			fontSize: '48px',
+			color: '#12FFEA',
+			backgroundColor: '#AE4496',
+			fontStyle: 'normal',
+			stroke: '#040000',
+			strokeThickness: 7,
+			shadow: { offsetX: -5, offsetY: 5, color: '#060000', fill: true, stroke: true }
+		});
+
+
         //line graphics
         this.hexGraphics = this.add.graphics(); //the lines drawing the hexagons
         this.lineGraphics = this.add.graphics(); //the line emmiting from the last chosen circle and following the user
@@ -17,24 +44,47 @@ class Level extends Phaser.Scene {
         this.rows = 8;
         this.cols = 8;
         this.hexInfo; //holds the information about the hexagon array
-        this.canUseInput = true; //If the user can provide input to the game
+        this.isPaused = false; //If the user can provide input to the game
+
+        //images
+        this.userInputBox = this.add.image(0, 0, "MenuBox").setDepth(1);
+        this.menuBox = this.add.image(0, 0, "MenuBox").setDepth(1);
+        this.restartButton = this.add.image(0, 0, "Button").setDepth(2);
+        this.quitButton = this.add.image(0, 0, "Button").setDepth(2);
+        this.quitBox = this.add.image(0, 0, "QuitBox").setDepth(10);
+        this.makeButtons();
 
         //classes
         this.gridInfo = new Grid(this.rows, this.cols, this.hexGraphics, this); //make the hexagons
         this.hexInfo = this.gridInfo.getHexCenter(); //set the hexagon information
         this.circleInfo = new Circle(this.rows, this.cols, this.gridInfo.getHexSize(), this.hexInfo, this); //draw the circles
+        this.ui = new UIEvents(this);
 
-        
-
+        var level = this;
         //input handlers
         this.input.on("gameobjectdown", this.startDraw, this); //start a move
         this.input.on("pointermove", this.continueDraw, this); //move input around 
         this.input.on("pointerup", this.stopDraw, this); //move finished
+        this.restartButton.on("pointerup", this.ui.restart, this); //clicked restart
+        //this.quitButton.on("pointerup", function (event) {}, this); //clicked quit
+        this.quitButton.on("pointerup", this.quit, this); //clicked quit
+
+
+    }
+
+    userInput()
+    {
+        
+        this.message = this.add.text(640, 250, "Enter the amount of rows you would like on the board", {
+            color: "#FFFFFF",
+            fontSize: 60,
+            fontStyle: "bold"
+        }).setOrigin(0.5).setDepth(2);
     }
 
     startDraw(pointer, gameObject, event)
     {
-        if(this.canUseInput)
+        if(!this.isPaused)
         {
             var lineSize = this.circleInfo.getCircleSize();
             this.draw = new Draw(lineSize, this);
@@ -42,13 +92,21 @@ class Level extends Phaser.Scene {
             this.isDragging = true;
             this.isDrawing = true; 
         }
+        else
+        {
+            this.stopDraw();
+        }
     }
 
     continueDraw()
     {      
-        if(this.isDragging)
+        if(this.isDragging && !this.isPaused)
         {
             this.draw.drawPath();            
+        }
+        else 
+        {
+            this.stopDraw();
         }
     }
 
@@ -57,9 +115,13 @@ class Level extends Phaser.Scene {
         if(this.isDrawing)
         {
             this.removeCircles();
-            this.dropCircles(0);
+            this.dropCircles();
             this.isDrawing = false;
             this.draw.stop();  
+        }
+        else
+        {
+
         }
         this.isDragging = false;        
     }
@@ -70,16 +132,15 @@ class Level extends Phaser.Scene {
 
         if(this.isDragging)
         {
-            chainLength = this.draw.getChainLength();
-            //console.log(chainLength);            
+            chainLength = this.draw.getChainLength();          
             if(chainLength > 1)
             {
-                this.emptySpaces = this.draw.emptyChain();
+                this.draw.emptyChain();
             }
         }
     }
 
-    dropCircles(delay)
+    dropCircles()
     {
         var emptySpaces = this.countEmptySpaces();
 
@@ -98,12 +159,12 @@ class Level extends Phaser.Scene {
                     //if the last row in the current column is empty, drop circles
                     if(this.hexInfo[j][i].isEmpty)
                     {
-                        this.circleInfo.fallCircles(j, i, delay);
+                        //console.log("x: " + j + " y: " + i + " is empty");
+                        this.circleInfo.fallCircles(j, i);
                     }
                 }      
             }   
             emptySpaces = this.countEmptySpaces();
-            delay += 1500; 
         }
         
     }
@@ -123,6 +184,56 @@ class Level extends Phaser.Scene {
         }
         return result;
     }
+
+    makeButtons()
+    {
+        this.quitBox.setPosition(333, 333);
+        this.quitBox.visible = false;
+
+        this.menuBox.setPosition(333, 333);
+        this.menuBox.visible = false;
+
+        this.restartButton.setPosition(333, 275);
+        this.restartButton.setInteractive();        
+        this.restartButton.visible = false;
+        this.restartText = this.add.text(250, 260, 'Restart', { fontSize: '40px', fill: '#000' });  
+        this.restartText.visible = false;
+        this.restartText.setDepth(3);
+
+        this.quitButton.setPosition(333, 350);
+        this.quitButton.setInteractive();        
+        this.quitButton.visible = false;
+        this.quitText = this.add.text(280, 330, 'Quit', { fontSize: '40px', fill: '#000' });   
+        this.quitText.visible = false;    
+        this.quitText.setDepth(3);
+    }
+
+
+    /* * * * * * * * NOTE * * * * * * * *
+    *
+    * Since there is only one scene to this level, quitting doesn't actually do anything
+    * Therefore, the 'quit' button just informs the user they pressed quit
+    *
+    */
+    quit()
+    {
+        console.log("Quit in level");
+        //this.quitBox.setScale({x: 4, y: 1.75});
+        //this.quitBox.setScaleX(4);
+        //this.quitBox.setScaleY(1.75);
+        //this.quitBox.visible = true;
+
+		this.add.text(150, this.scale.height * 0.5 + 175, 'YOU QUIT!', {
+			fontFamily: 'Risque',
+			fontSize: '100px',
+			color: '#000202',
+			backgroundColor: '#000000',
+			fontStyle: 'normal',
+			stroke: '#008DFF',
+			strokeThickness: 10,
+			shadow: { offsetX: -2, offsetY: 2, color: '#060000', fill: true, stroke: true }
+		}).setDepth(11).setAngle(-45);
+    }
 }
 
 class Grid
@@ -139,8 +250,8 @@ class Grid
 
     create()
     {
-        var screenWidth = window.innerWidth; //size of screen width
-        var screenHeight = window.innerHeight; //size of screen height
+        var screenWidth = 800;//window.innerWidth; //size of screen width
+        var screenHeight = 600;//window.innerHeight; //size of screen height
 
         this.size = this.SetHexSize(screenWidth, screenHeight); //get size of hexagon        
         this.hexCenter = [];
@@ -343,18 +454,13 @@ class Circle
             center = {x: this.hexCenter[0][y].pixelCoord.x + (width / 2), y: this.hexCenter[0][y].pixelCoord.y - vertDistance};
         }
 
-
         let circle = this.level.add.circle(center.x, center.y, this.size, color).setInteractive(); //create interactive circle
         circle.setDataEnabled(); //allow data to be entered
         circle.setData({ 'color': color, 'x': x, 'y': y }); //set color and coordinates
-
-        if(x === -1)
-        {
-            //circle.setActive(false).setVisible(false);
-        }
+  
 
         //to help with debugging
-        this.level.add.text(center.x - (this.hexSize / 2), center.y, '(' + circle.getData('x') + ', ' + circle.getData('y') + ')', { font: '16px Courier', fill: '#000000' });
+        //this.level.add.text(center.x - (this.hexSize / 2), center.y, '(' + circle.getData('x') + ', ' + circle.getData('y') + ')', { font: '16px Courier', fill: '#000000' });
 
         return circle;
     }
@@ -384,14 +490,14 @@ class Circle
         }
     }
 
-    fallCircles(i, j, delay)
+    fallCircles(i, j)
     {
         //start right above the empty row that was found, which was i
         for(let k = i - 1; k > -2; k--)
         {
             if(k > -1 && !this.level.hexInfo[k][j].isEmpty)
             {
-                this.moveGradually(this.circleArr[k][j], this.level.hexInfo[k + 1][j].pixelCoord.x, this.level.hexInfo[k + 1][j].pixelCoord.y, delay)
+                this.moveGradually(this.circleArr[k][j], this.level.hexInfo[k + 1][j].pixelCoord.x, this.level.hexInfo[k + 1][j].pixelCoord.y);
                 this.circleArr[k + 1][j] = this.circleArr[k][j]; //update circle array with the correct coordinates of the moved circle
                 this.circleArr[k + 1][j].setData({'x': k + 1, 'y': j}); //update the circle's data that is saying its coordinates
 
@@ -402,18 +508,17 @@ class Circle
             //k is -1, so we are looking to make a new circle for row 0
             else if(k === -1)
             {
-                this.dropNewCircles(j, delay);
+                this.dropNewCircles(j);
             }
-            delay += 100;
         }
 
     }
 
-    dropNewCircles(col, delay)
+    dropNewCircles(col)
     {
         var newCircle = this.drawCircle(-1, col); //draw a new circle in the same column, but a row back
 
-        this.moveGradually(newCircle, this.level.hexInfo[0][col].pixelCoord.x, this.level.hexInfo[0][col].pixelCoord.y, delay);
+        this.moveGradually(newCircle, this.level.hexInfo[0][col].pixelCoord.x, this.level.hexInfo[0][col].pixelCoord.y);
         
         this.circleArr[0][col] = newCircle; //update circle array with the correct coordinates of the moved circle
         this.circleArr[0][col].setData({'x': 0, 'y': col});
@@ -422,27 +527,15 @@ class Circle
 
     }
 
-    moveGradually(target, x, y, delay)
-    {
-        this.level.canUseInput = false;
+    moveGradually(target, x, y)
+    {   
         this.level.tweens.add({
             targets: target,
             x: x,
             y: y,
             duration: 1500,
-            ease: Phaser.Math.Easing.Bounce.Out,
-            easeParams: [ 3.5 ],
-            delay: delay
+            ease: Phaser.Math.Easing.Bounce.Out
         });  
-
-        this.level.time.addEvent({
-            delay: 3000,
-            callback: () => {
-                this.level.canUseInput = true;                
-            }
-        });
-
-
     }
 }
 
@@ -690,7 +783,6 @@ class Draw
     {
         for(let i = 0; i < this.chosenArr.length;)
         {
-
             var deleteCircle = this.chosenArr.pop();  
             var x = deleteCircle.getData('x');
             var y = deleteCircle.getData('y');
@@ -700,8 +792,113 @@ class Draw
 
             //console.log(this.level.hexInfo);
             deleteCircle.destroy();
+            eventsCenter.emit('update-score', 1);
             
         }
-        //return emptySpaces;
+    }
+}
+
+class UIEvents
+{
+    constructor(level)
+    {
+        this.level = level;
+
+        this.create();
+    }
+
+    create()
+    {
+        //var
+        this.score = 0;
+        this.initalTime = 30; //time in seconds
+
+        //text
+        //this.scoreText = this.level.add.text(100, 100, 'Score: 0', { fontSize: '20px', fill: '#000' });  
+        this.scoreText = this.text(100, 90, 'Score: 0', '30px', 0x00FF00, 1, 0, 0);
+        //this.timerText = this.level.add.text(475, 100, 'Time: 0', { fontSize: '20px', fill: '#000' });  
+        this.timerText = this.text(475, 90, 'Time: 0', '30px', 0x00FF00, 1, 0, 0);
+        //this.gameOverText = this.level.add.text(275, 100, 'Game Over', { fontSize: '20px', fill: '#000' }); 
+        this.gameOverText = this.text(235, 175, "Game Over", '40px', '#FF1212', 7, -5, 5); 
+        this.finalScoreText = this.text(190, 400, ('Final Score: ' + this.score), '50px', '#77CCBB', 8, -3, 3).setDepth(3);
+        this.gameOverText.visible = false;
+        this.finalScoreText.visible = false;
+
+        //listen for updates on score
+        eventsCenter.off('update-score');
+        eventsCenter.on('update-score', this.updateScore, this);
+
+        //timer
+        this.timedEvent = this.level.time.addEvent({ delay: 1000, callback: this.onEvent, callbackScope: this, loop: true });
+    }
+
+    text(x, y, text, size, color, strokeSize, offsetX, offsetY)
+    {
+        //const x = this.scale.width * 0.5
+		//const y = this.scale.height * 0.5
+
+		var text = this.level.add.text(x, y, text, {
+			fontFamily: 'Risque',
+			fontSize: size,
+			color: color,
+			fontStyle: 'normal',
+			stroke: '#040000',
+			strokeThickness: strokeSize,
+			shadow: { offsetX: offsetX, offsetY: offsetY, color: '#060000', fill: true, stroke: true }
+		}).setDepth(2)
+
+        return text;
+    }
+
+    //update score
+    updateScore(score)
+    {
+        this.score += score;
+        this.scoreText.setText('Score: ' + this.score);
+    }
+
+    //update countdown
+    onEvent(timeLeft)
+    {
+        this.initalTime -= 1;
+        this.timerText.setText('Time: ' + this.initalTime);
+        if(this.initalTime === 0)
+        {
+            this.timedEvent.paused = true;
+            this.gameOver();
+        }
+    }
+
+    //what happens when the timer runs out
+    gameOver()
+    {
+        this.level.isPaused = true;
+        //set everything visible
+        this.gameOverText.visible = true;
+
+        this.level.menuBox.visible = true;
+        this.finalScoreText.setText("Final Score: " + this.score);
+        this.finalScoreText.visible = true;
+
+        this.level.restartButton.visible = true;
+        this.level.restartText = this.text(265, 245, "Restart", '45px', '#77CCBB', 2, -1, 1);
+        this.level.restartText.visible = true;
+
+        this.level.quitButton.visible = true; 
+        this.level.quitText = this.text(285, 320, "Quit", '45px', '#77CCBB', 2, -1, 1); 
+        this.level.quitText.visible = true;  
+    }
+
+    restart()
+    {
+        console.log("restart");
+        this.scene.restart(); // restart current scene
+    }
+
+    quit(level)
+    {
+        console.log("quit");
+        level.quitBox.setScale(5);
+        level.quitBox.visible = true;
     }
 }
